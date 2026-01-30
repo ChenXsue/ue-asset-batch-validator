@@ -79,18 +79,21 @@ This tool demonstrates **engine-side tooling**, **batch processing**, and **arti
 ---
 
 ## 📁 Repository Structure
+
+```
 AssetBatchValidator/
-├── AssetBatchValidator.uplugin          
+├── AssetBatchValidator.uplugin
 ├── Resources/
-│   └── Icon128.png                     
-├── Content/                            
+│   └── Icon128.png
+├── Content/
 └── Source/
     └── AssetBatchValidator/
-        ├── AssetBatchValidator.Build.cs 
+        ├── AssetBatchValidator.Build.cs
         ├── Public/
-        │   ├── AssetBatchValidator.h    
-        │   └── ABVTypes.h               
+        │   ├── AssetBatchValidator.h
+        │   └── ABVTypes.h
         └── Private/
-            ├── AssetBatchValidator.cpp  
-            ├── SAssetBatchValidatorPanel.h   
-            └── SAssetBatchValidatorPanel.cpp 
+            ├── AssetBatchValidator.cpp
+            ├── SAssetBatchValidatorPanel.h
+            └── SAssetBatchValidatorPanel.cpp
+``` 
