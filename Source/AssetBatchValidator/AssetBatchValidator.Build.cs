@@ -45,6 +45,9 @@ public class AssetBatchValidator : ModuleRules
                 "AssetRegistry",
                 "ContentBrowser",
                 "InputCore",
+				"Slate",
+				"SlateCore",
+				"EditorStyle"
 				// ... add private dependencies that you statically link with here ...
 			}
 			);

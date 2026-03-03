@@ -26,6 +26,14 @@
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Views/STableRow.h"
+#include "ContentBrowserModule.h"
+#include "IContentBrowserSingleton.h"
+#include "AssetRegistry/AssetData.h"
+#include "UObject/SoftObjectPath.h"
+#include "Misc/Paths.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+
 
 static FString KindToString(EABVTextureKind K)
 {
@@ -73,6 +81,27 @@ FReply SAssetBatchValidatorPanel::OnUseSelectedFolderClicked()
     }
 
     return FReply::Handled();
+}
+
+static FSlateColor ABV_SeverityTextColor(EABVIssueSeverity Sev)
+{
+    switch (Sev)
+    {
+    case EABVIssueSeverity::Error:   return FLinearColor(1.f, 0.25f, 0.25f); // red
+    case EABVIssueSeverity::Warning: return FLinearColor(1.f, 0.85f, 0.2f);  // yellow
+    case EABVIssueSeverity::OK:      return FLinearColor(0.65f, 0.65f, 0.65f); // gray (or green)
+    default:                         return FLinearColor::White;
+    }
+}
+
+static FSlateColor ABV_SeverityRowTint(EABVIssueSeverity Sev)
+{
+    switch (Sev)
+    {
+    case EABVIssueSeverity::Error:   return FLinearColor(1.f, 0.2f, 0.2f, 0.08f);
+    case EABVIssueSeverity::Warning: return FLinearColor(1.f, 0.85f, 0.2f, 0.06f);
+    default:                         return FLinearColor(0.f, 0.f, 0.f, 0.f);
+    }
 }
 
 FReply SAssetBatchValidatorPanel::OnScanTexturesClicked()
@@ -158,6 +187,50 @@ FReply SAssetBatchValidatorPanel::OnFixAllFailedClicked()
     return OnScanTexturesClicked();
 }
 
+FReply SAssetBatchValidatorPanel::OnExportCSVClicked()
+{
+    // 把 SharedPtr 列表转回普通数组
+    TArray<FABVTextureIssue> Issues;
+    Issues.Reserve(TextureItems.Num());
+    for (const TSharedPtr<FABVTextureIssue>& P : TextureItems)
+    {
+        if (P.IsValid()) Issues.Add(*P);
+    }
+
+    const FString OutDir  = FPaths::ProjectSavedDir() / TEXT("ABV");
+    IFileManager::Get().MakeDirectory(*OutDir, true);
+
+    const FString OutPath = OutDir / TEXT("ABV_Report.csv");
+
+    FAssetBatchValidatorModule& Mod =
+        FModuleManager::LoadModuleChecked<FAssetBatchValidatorModule>("AssetBatchValidator");
+
+    const bool bOk = Mod.ExportReportCSV(Issues, OutPath);
+
+    FNotificationInfo Info(
+        bOk
+        ? FText::FromString(FString::Printf(TEXT("ABV Export Success:\n%s"), *OutPath))
+        : FText::FromString(TEXT("ABV Export Failed. Check log."))
+    );
+
+    Info.bFireAndForget = true;
+    Info.FadeOutDuration = 3.0f;
+    Info.ExpireDuration = 4.0f;
+
+    if (bOk)
+    {
+        Info.Image = FAppStyle::Get().GetBrush("NotificationList.SuccessImage");
+    }
+    else
+    {
+        Info.Image = FAppStyle::Get().GetBrush("NotificationList.FailImage");
+    }
+
+    FSlateNotificationManager::Get().AddNotification(Info);
+
+    return FReply::Handled();
+}
+
 TSharedRef<ITableRow> SAssetBatchValidatorPanel::OnGenerateRow(
     TSharedPtr<FABVTextureIssue> Item,
     const TSharedRef<STableViewBase>& OwnerTable)
@@ -196,27 +269,30 @@ TSharedRef<ITableRow> SAssetBatchValidatorPanel::OnGenerateRow(
         ]
 
         // 2) Size
-        + SHorizontalBox::Slot().FillWidth(0.12f).Padding(6,2)
+        + SHorizontalBox::Slot().FillWidth(0.08f).Padding(6,2)
         [
             SNew(STextBlock).Text(FText::FromString(SizeText))
         ]
 
         // 3) Type
-        + SHorizontalBox::Slot().FillWidth(0.10f).Padding(6,2)
+        + SHorizontalBox::Slot().FillWidth(0.06f).Padding(6,2)
         [
             SNew(STextBlock).Text(FText::FromString(KindToString(Item->Kind)))
         ]
 
         // 4) Result
-        + SHorizontalBox::Slot().FillWidth(0.12f).Padding(6,2)
+        + SHorizontalBox::Slot().FillWidth(0.06f).Padding(6,2)
         [
             SNew(STextBlock).Text(FText::FromString(SeverityToString(Item->Severity)))
+            .ColorAndOpacity(ABV_SeverityTextColor(Item->Severity))
         ]
 
         // 5) Message
         + SHorizontalBox::Slot().FillWidth(0.26f).Padding(6,2)
         [
             SNew(STextBlock).Text(FText::FromString(Item->Message))
+            .ToolTipText(FText::FromString(Item->Message)) 
+            .ColorAndOpacity(ABV_SeverityTextColor(Item->Severity))
         ]
     ];
 }
@@ -338,6 +414,12 @@ void SAssetBatchValidatorPanel::Construct(const FArguments& InArgs)
                 .Text(FText::FromString(TEXT("Clear Selection")))
                 .OnClicked(this, &SAssetBatchValidatorPanel::OnClearSelectionClicked)
             ]
+            + SHorizontalBox::Slot().AutoWidth().Padding(8,0,0,0)
+            [
+                SNew(SButton)
+                .Text(FText::FromString(TEXT("Export CSV")))
+                .OnClicked(this, &SAssetBatchValidatorPanel::OnExportCSVClicked)
+            ]
         ]
         
 
@@ -348,29 +430,53 @@ void SAssetBatchValidatorPanel::Construct(const FArguments& InArgs)
             SAssignNew(TextureListView, SListView<TSharedPtr<FABVTextureIssue>>)
                 .ListItemsSource(&TextureItems)
                 .OnGenerateRow(this, &SAssetBatchValidatorPanel::OnGenerateRow)
+                .OnMouseButtonDoubleClick(this, &SAssetBatchValidatorPanel::OnItemDoubleClicked)
                 .HeaderRow(
                     SNew(SHeaderRow)
 
                     + SHeaderRow::Column("AssetPath")
                     .DefaultLabel(FText::FromString("Asset"))
-                    .FillWidth(0.45f)
+                    .FillWidth(0.40f)
 
                     + SHeaderRow::Column("Size")
                     .DefaultLabel(FText::FromString("Size"))
-                    .FillWidth(0.10f)
+                    .FillWidth(0.08f)
 
                     + SHeaderRow::Column("Kind")
                     .DefaultLabel(FText::FromString("Type"))
-                    .FillWidth(0.10f)
+                    .FillWidth(0.06f)
 
                     + SHeaderRow::Column("Severity")
                     .DefaultLabel(FText::FromString("Result"))
-                    .FillWidth(0.10f)
+                    .FillWidth(0.06f)
 
                     + SHeaderRow::Column("Message")
                     .DefaultLabel(FText::FromString("Message"))
-                    .FillWidth(0.25f))
+                    .FillWidth(0.26f))
         ]
     ];
     
+}
+void SAssetBatchValidatorPanel::SyncToContentBrowser(const FString& AssetPathString)
+{
+    // AssetPathString 形如 "/Game/xxx/T_A.T_A"
+    FSoftObjectPath SoftPath(AssetPathString);
+    UObject* Obj = SoftPath.TryLoad(); // 简单做法：保证拿到 UObject
+
+    if (!Obj)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ABV: Failed to load asset for sync: %s"), *AssetPathString);
+        return;
+    }
+
+    TArray<UObject*> Objs;
+    Objs.Add(Obj);
+
+    FContentBrowserModule& CB = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+    CB.Get().SyncBrowserToAssets(Objs);
+}
+void SAssetBatchValidatorPanel::OnItemDoubleClicked(TSharedPtr<FABVTextureIssue> Item)
+{
+    if (!Item.IsValid()) return;
+    SyncToContentBrowser(Item->AssetPath);
 }

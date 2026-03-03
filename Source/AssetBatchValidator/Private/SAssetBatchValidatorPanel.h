@@ -27,12 +27,17 @@ private:
     FReply OnFixAllFailedClicked();
     FReply OnSelectAllClicked();
     FReply OnClearSelectionClicked();
+    FReply OnExportCSVClicked();
+    
 
     // Text / checkbox
     FText GetTargetFolderText() const;
     void OnRecursiveChanged(ECheckBoxState NewState);
     void SetAllSelected(bool bInSelected);
     ECheckBoxState GetRecursiveState() const;
+    void OnItemDoubleClicked(TSharedPtr<FABVTextureIssue> Item);
+    void SyncToContentBrowser(const FString& AssetPathString);
+    
 
 
 private:

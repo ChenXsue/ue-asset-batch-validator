@@ -32,6 +32,7 @@ public:
         TArray<FABVTextureIssue>& OutIssues);
     // Fix: returns number of textures actually changed
     int32 FixTextures(const TArray<FABVTextureIssue>& IssuesToFix, int32 MaxTextureSize);
+    bool ExportReportCSV(const TArray<FABVTextureIssue>& Issues, const FString& FilePath);
     
 private:
     FName TargetFolder = FName("/Game");

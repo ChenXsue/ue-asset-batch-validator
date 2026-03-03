@@ -11,6 +11,9 @@
 #include "ScopedTransaction.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Texture2D.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 
 #define LOCTEXT_NAMESPACE "FAssetBatchValidatorModule"
 static bool ABV_IsPowerOfTwo(int32 X)
@@ -85,6 +88,7 @@ static void ABV_AddIssue(
     I.bCanFix = bCanFix;
     Out.Add(MoveTemp(I));
 }
+
 static const FName ABV_TabName("AssetBatchValidatorTab");
 /*
 void FAssetBatchValidatorModule::ScanTextures(const FName& RootPath, bool bRecursive, TArray<FABVTextureRow>& OutRows)
@@ -150,8 +154,21 @@ void FAssetBatchValidatorModule::ValidateTextures(
         if (!Tex) continue;
 
         const FString AssetPath = AD.GetObjectPathString();
-        const int32 W = Tex->GetSizeX();
-        const int32 H = Tex->GetSizeY();
+        int32 W = 0;
+        int32 H = 0;
+
+        // 用导入源分辨率（不受 streaming 影响）
+        if (Tex->Source.IsValid())
+        {
+            W = Tex->Source.GetSizeX();
+            H = Tex->Source.GetSizeY();
+        }
+        else
+        {
+            // 兜底：Source 不可用再用 GetSizeX/Y
+            W = Tex->GetSizeX();
+            H = Tex->GetSizeY();
+        }        
 
         const EABVTextureKind Kind = ABV_GuessKindFromName(AssetPath);
 
@@ -277,6 +294,10 @@ int32 FAssetBatchValidatorModule::FixTextures(const TArray<FABVTextureIssue>& Is
                 if (Tex->MaxTextureSize != MaxTextureSize)
                 {
                     Tex->MaxTextureSize = MaxTextureSize;
+                    if (Tex->LODBias != 0)
+                    {
+                        Tex->LODBias = 0;
+                    }
                     bChanged = true;
                 }
             }
@@ -291,6 +312,75 @@ int32 FAssetBatchValidatorModule::FixTextures(const TArray<FABVTextureIssue>& Is
     }
 
     return FixedCount;
+}
+
+static FString ABV_KindToString(EABVTextureKind Kind)
+{
+    switch (Kind)
+    {
+    case EABVTextureKind::Color:  return TEXT("Color");
+    case EABVTextureKind::Normal: return TEXT("Normal");
+    case EABVTextureKind::ORM:    return TEXT("ORM");
+    case EABVTextureKind::Mask:   return TEXT("Mask");
+    default:                      return TEXT("Unknown");
+    }
+}
+
+static FString ABV_SeverityToString(EABVIssueSeverity Sev)
+{
+    switch (Sev)
+    {
+    case EABVIssueSeverity::OK:      return TEXT("OK");
+    case EABVIssueSeverity::Warning: return TEXT("Warning");
+    case EABVIssueSeverity::Error:   return TEXT("Error");
+    default:                         return TEXT("OK");
+    }
+}
+
+static FString ABV_EscapeCSV(const FString& In)
+{
+    // 如果包含逗号/引号/换行，则用双引号包起来，并把内部 " 变成 ""
+    bool bNeedQuotes = In.Contains(TEXT(",")) || In.Contains(TEXT("\"")) || In.Contains(TEXT("\n")) || In.Contains(TEXT("\r"));
+    if (!bNeedQuotes) return In;
+
+    FString Out = In;
+    Out.ReplaceInline(TEXT("\""), TEXT("\"\""));
+    return FString::Printf(TEXT("\"%s\""), *Out);
+}
+
+bool FAssetBatchValidatorModule::ExportReportCSV(const TArray<FABVTextureIssue>& Issues, const FString& FilePath)
+{
+    // 1) 确保目录存在（否则某些写文件方式会返回 null 导致 crash）
+    const FString Dir = FPaths::GetPath(FilePath);
+    if (!Dir.IsEmpty())
+    {
+        IFileManager::Get().MakeDirectory(*Dir, /*Tree=*/true);
+    }
+
+    // 2) 拼 CSV 内容
+    FString Csv;
+    Csv += TEXT("AssetPath,Width,Height,Kind,Severity,Message,CanFix\n");
+
+    for (const FABVTextureIssue& I : Issues)
+    {
+        Csv += FString::Printf(TEXT("%s,%d,%d,%s,%s,%s,%s\n"),
+            *ABV_EscapeCSV(I.AssetPath),
+            I.Width,
+            I.Height,
+            *ABV_EscapeCSV(ABV_KindToString(I.Kind)),
+            *ABV_EscapeCSV(ABV_SeverityToString(I.Severity)),
+            *ABV_EscapeCSV(I.Message),
+            I.bCanFix ? TEXT("true") : TEXT("false")
+        );
+    }
+
+    // 3) 写文件（失败只返回 false，不会 crash）
+    const bool bOk = FFileHelper::SaveStringToFile(Csv, *FilePath);
+    if (!bOk)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ABV ExportReportCSV: SaveStringToFile failed: %s"), *FilePath);
+    }
+    return bOk;
 }
 
 void FAssetBatchValidatorModule::StartupModule()

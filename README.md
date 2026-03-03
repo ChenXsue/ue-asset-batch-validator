@@ -7,74 +7,52 @@ Assets imported into Unreal frequently suffer from issues such as incorrect text
 This tool demonstrates **engine-side tooling**, **batch processing**, and **artist-facing UI**, designed to automate common asset checks that are slow and error-prone when done manually.
 
 ---
+## 🎬 Demo
+
+![Preview](UE_ABV_Demo_HD.gif)
 
 ## ✨ Features
 
-### ✅ Implemented
 
-#### Editor UI
-- ✅ Custom **Editor panel** (Slate-based)
-- ✅ Target folder display
-- ✅ Recursive / non-recursive scanning
-- ✅ Result table with severity and messages
-- ✅ Per-row selection with checkboxes
+#### Editor UIs
+	•	Custom Slate-based editor panel
+	•	Folder selection with recursive scan
+	•	Structured result table with severity color coding
+	•	Row selection with checkboxes
+	•	Double-click to sync asset in Content Browser
+	•	In-editor success / failure notifications
 
 #### Texture Validation
-- ✅ Folder-based batch scan
-- ✅ Max Texture Size check (configurable)
-- ✅ Power-of-Two validation
-- ✅ Compression rules:
-  - Normal → `TC_Normalmap`
-  - ORM / Mask → `TC_Masks`
-- ✅ sRGB rules:
-  - Normal / ORM / Mask → sRGB disabled
-- ✅ Severity levels: **OK / Warning / Error**
+	•	Configurable Max Texture Size
+	•	Power-of-Two validation
+	•	Compression rule enforcement
+	•	Normal → TC_Normalmap
+	•	ORM / Mask → TC_Masks
+	•	sRGB validation for Normal / ORM / Mask
+	•	Severity classification: OK / Warning / Error
 
 #### One-Click Fix (Key Feature)
-- ✅ Fix Selected
-- ✅ Fix All Failed
-- ✅ Auto-fix:
-  - Compression Settings
-  - sRGB flags
-- ✅ Undo/Redo supported
-- ✅ Auto refresh after fix
+	•	Fix Selected
+	•	Fix All Failed
+	•	Automatic correction of compression & sRGB settings
+	•	Full Undo / Redo support
+	•	Automatic refresh after fix
 
----
-
-### 🛠️ Planned / In Progress
-
-#### Texture Rules
-- ⏳ MipGenSettings validation
-- ⏳ LODGroup validation
-- ⏳ Rule presets (Game / Mobile)
-
-#### Static Mesh Validation
-- ⏳ Triangle / Vertex count thresholds
-- ⏳ LOD existence checks
-- ⏳ Collision presence checks
-- ⏳ Auto-generate simple collision (optional)
-
-#### Visualization & UX
-- ⏳ Sync asset selection with Content Browser
-- ⏳ Double-click to open asset / editor
-- ⏳ Preview / details panel for failed rules
-- ⏳ Viewport focus / highlight (for meshes)
-
-#### Pipeline Features
-- ⏳ Export validation report (CSV / JSON)
-- ⏳ Rule profiles (configurable & reusable)
-- ⏳ Info / Warning / Error color coding
+#### Reporting
+	•	Export validation results to CSV
+	•	Includes asset path, resolution, type, severity, and message
 
 ---
 
 ## 🧰 Tech Stack
 
-- Unreal Engine **5.5**
-- C++ Editor Plugin
-- Slate UI (SListView, SHeaderRow, custom widgets)
-- Asset Registry
-- Editor ToolMenus
-- Undo/Redo via `FScopedTransaction`
+	•	Unreal Engine **5.5**
+	•	C++ Editor Plugin
+	•	Slate UI
+	•	Asset Registry
+	•	ToolMenus
+	•	FScopedTransaction (Undo/Redo)
+	•	FSlateNotificationManager
 
 ---
 
